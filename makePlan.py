@@ -188,6 +188,8 @@ def main(args):
             a.node[i]['xyz'] = xyz[i]
             a.node[i]['xy' ] = xy[i]
 
+        a.dists = geometry.sphereDist(locs,locs)
+
         # build portal list for intel_url
         intel_url += "pls="
         json_output = []

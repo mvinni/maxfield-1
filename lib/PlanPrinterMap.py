@@ -381,14 +381,13 @@ class PlanPrinter:
         for i in range(self.nagents):
             movie = self.movements[i]
             # first portal in first link
-            curpos = self.a.node[self.orderedEdges[movie[0]][0]]['geo']
+            curnode = self.orderedEdges[movie[0]][0]
             for e in movie[1:]:
                 p,q = self.orderedEdges[e]
-                newpos = self.a.node[p]['geo']
-                dist = geometry.sphereDist(curpos,newpos)
+                dist = self.a.dists[curnode][p]
                 # print 'Agent %s walks %s to %s'%(i,dist,self.nslabel[p])
                 agentdists[i] += dist
-                curpos = newpos
+                curnode = p
 
                 agentlinkcount[i] += 1
                 agentfieldcount[i] += len(self.a.edge[p][q]['fields'])

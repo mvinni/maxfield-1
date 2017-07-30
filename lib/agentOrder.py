@@ -172,8 +172,8 @@ def getAgentOrder(a,nagents,orderedEdges):
     Time spent navigating linking menu
         a.linktime
     '''
-    geo = np.array([ a.node[i]['geo'] for i in xrange(a.order())])
-    d = geometry.sphereDist(geo,geo)
+    d = a.dists
+
     # print d
     order = [e[0] for e in orderedEdges]
 
@@ -307,8 +307,7 @@ def improveEdgeOrderMore(a):
     # If link i is e then orderedEdges[i]=e
     orderedEdges = [-1]*m
 
-    geo = np.array([ a.node[i]['geo'] for i in xrange(a.order())])
-    d = geometry.sphereDist(geo,geo)
+    d = a.dists
 
     def pathLength(d, edges):
         startps = [edges[i][0] for i in xrange(len(edges))]

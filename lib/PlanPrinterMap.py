@@ -172,16 +172,22 @@ class PlanPrinter:
                 print("Could not connect to google maps server!")
 
     def keyPrep(self):
-        rowFormat = '{0:11d} | {1:6d} | {2:4d} | {3}\n'
+        rowFormat = '{0:11d} | {1:6d} | {2:8} | {3:4d} | {4}\n'
         TotalKeylack = 0
         with open(self.outputDir+'keyPrep.txt','w') as fout:
-            fout.write( 'Keys Needed | Lacked | Map# |                           %s\n'\
+            fout.write( 'Keys Needed | Lacked | Outlinks | Map# |                           %s\n'\
                 %time.strftime('%Y-%m-%d %H:%M:%S %Z'))
             for i in self.nameOrder:
                 keylack = max(self.a.in_degree(i)-self.a.node[i]['keys'],0)
+                outcount = self.a.out_degree(i)
+                if outcount <= 8:
+                    sbla = outcount
+                else:
+                    sbla = "SBLA:%d" % outcount
                 fout.write(rowFormat.format(\
                     self.a.in_degree(i),\
                     keylack,\
+                    sbla,
                     self.nslabel[i],\
                     self.names[i]\
                 ))

@@ -133,7 +133,7 @@ class Triangle:
             triangleContentCache[triangleKey] = self.contents
 
 
-    def randSplit(self):
+    def randSplit(self, recursive=False):
         if len(self.contents) == 0:
             return
         
@@ -141,8 +141,9 @@ class Triangle:
         
         self.splitOn(p)
 
-        for child in self.children:
-            child.randSplit()
+        if recursive:
+            for child in self.children:
+                child.randSplit()
 
     def nearSplit(self, recursive=False):
         # Split on the node closest to final
@@ -209,7 +210,8 @@ class Triangle:
 
     def buildExceptFinal(self):
         # print 'building EXCEPT final',self.tostr()
-        self.nearSplit()
+        #self.nearSplit()
+        self.randSplit()
         if len(self.children) == 0:
             # print 'no children'
             p,q = self.verts[2] , self.verts[1]

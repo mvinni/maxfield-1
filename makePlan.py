@@ -337,6 +337,11 @@ def main(args):
                 t.markEdgesWithFields()
         except AttributeError:
             print "Error: problem with bestgraph... no triangulation...?"
+
+        if len(b.triangulation) == 0:
+            print "Problem with bestgraph: no triangulation"
+            continue
+
         agentOrder.improveEdgeOrder(b)
         PP = PlanPrinterMap.PlanPrinter(b,output_directory,nagents,useGoogle=useGoogle,
                                         api_key=api_key,color=color)

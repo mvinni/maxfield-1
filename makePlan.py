@@ -124,6 +124,7 @@ def main(args):
             loc = None
             keys = 0
             sbla = False
+            maxout = 8
             for pind,pfoobar in enumerate(portal):
                 if str(pfoobar) == 'nan':
                     continue
@@ -155,8 +156,16 @@ def main(args):
                 except ValueError:
                     pass
                 try: # this is SBLA
-                    sbla = pfoobar.strip()
-                    sbla = (sbla.lower() == 'sbla')
+                    sblas = pfoobar.strip()
+                    sbla = (sblas.lower() == 'sbla')
+                    if sbla:
+                        maxout = 40
+                    elif sblas.lower().startswith('sbla:'):
+                        # etc.; support sbla:0 - sbla:40
+                        sblas = sblas.split(':', 1)
+                        maxout = int(sblas[1])
+                        sbla = True
+
                     continue
                 except ValueError:
                     pass
@@ -171,8 +180,9 @@ def main(args):
             locs.append(loc)
             a.node[num]['keys'] = keys
             a.node[num]['sbla'] = sbla
+            a.node[num]['maxout'] = maxout
             if sbla:
-                print "{0} has SBLA".format(portal[0])
+                print "{0} has SBLA (max {1} outlinks)".format(portal[0], maxout)
 
         n = a.order() # number of nodes
         locs = np.array(locs,dtype=float)

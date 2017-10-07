@@ -30,16 +30,15 @@ triangle while attempting to get it right
 '''
 TRIES_PER_TRI = 1
 
-def canFlip(degrees,keylacks,hasSBLA,p,q):
+def canFlip(degrees,keylacks,maxouts,p,q):
     '''
     True if reversing edge p,q is a paraeto improvement
         out-degree of q must be <8
         p must have a key surplus
         or if portal has SBLA, < 40 links, and key surplus
     '''
-    case1 = (degrees[q,1] < 8) & (keylacks[p]<0)
-    case2 = (hasSBLA[q]) & (degrees[q,1] < 40) & (keylacks[p]<0)
-    return case1 | case2
+    case1 = (degrees[q,1] < maxouts[q]) & (keylacks[p]<0)
+    return case1
 
 def flip(a,p,q,degrees=None,keylacks=None):
     if not a.edge[p][q]['reversible']:
@@ -68,14 +67,14 @@ def flipSome(a):
     n = a.order()
     degrees  = np.empty([n,2],dtype=int)
     keylacks = np.empty(n,dtype=int) # negative if there's a surplus
-    hasSBLA = np.empty(n,dtype=bool)
+    maxouts = np.empty(n,dtype=int)
 
     # column 0 is in-degree, col 1 is out-degree
     for i in xrange(n):
         degrees[i,0] = a.in_degree(i)
         degrees[i,1] = a.out_degree(i)
         keylacks[i] = degrees[i,0]-a.node[i]['keys']
-        hasSBLA[i] = a.node[i]['sbla']
+        maxouts[i] = a.node[i]['maxout']
 
     # This is now commented out because plans are not submitted to
     # this function without obeying the 8 outgoing links limit.
@@ -102,7 +101,7 @@ def flipSome(a):
     needkeys = needkeys[np.argsort(keylacks[needkeys])][::-1]
     for q in needkeys:
         for p,q2 in a.in_edges(q):
-            if a.edge[p][q]['reversible'] and canFlip(degrees,keylacks,hasSBLA,p,q):
+            if a.edge[p][q]['reversible'] and canFlip(degrees,keylacks,maxouts,p,q):
                 flip(a,p,q,degrees,keylacks)
             if keylacks[q] <= 0:
                 break

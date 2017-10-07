@@ -247,8 +247,12 @@ class Triangle:
                self.a.has_edge(self.verts[1],self.verts[2]):
                 raise Deadend('Final vertex completed by neighbors')
             else:
-                # make verts[1] the new final vertex
-                self.verts[0], self.verts[1] = self.verts[1], self.verts[0]
+                # make verts[1] or verts[2] the new final vertex
+                if np.random.choice(2) == 0:
+                    self.verts[0], self.verts[1] = self.verts[1], self.verts[0]
+                else:
+                    self.verts[0], self.verts[2] = self.verts[2], self.verts[0]
+
 
         self.buildExceptFinal()
         self.buildFinal()

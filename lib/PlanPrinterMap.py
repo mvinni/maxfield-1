@@ -404,7 +404,7 @@ class PlanPrinter:
             movie = self.movements[i]
             # first portal in first link
             curnode = self.orderedEdges[movie[0]][0]
-            for e in movie[1:]:
+            for e in movie:
                 p,q = self.orderedEdges[e]
                 dist = self.a.dists[curnode][p]
                 # print 'Agent %s walks %s to %s'%(i,dist,self.nslabel[p])

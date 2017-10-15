@@ -422,6 +422,13 @@ def improveEdgeOrderMore(a):
                 #print("New order (%d -> %d): %s" % (j, best, bestPath))
                 orderedEdges = bestPath
                 cont = True
+            else:
+                if j > 0 and orderedEdges[j-1][0] == orderedEdges[j][0]:
+                    # try swapping the two links to create a shorter link before a longer one
+                    if d[orderedEdges[j][0], orderedEdges[j][1]] < d[orderedEdges[j-1][0], orderedEdges[j-1][1]]:
+                        if not dependsOn([orderedEdges[j]], [orderedEdges[j-1]]):
+                            orderedEdges[j-1], orderedEdges[j] = orderedEdges[j], orderedEdges[j-1]
+                            cont = True
 
     length = pathLength(d, orderedEdges)
     print

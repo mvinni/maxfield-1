@@ -350,7 +350,7 @@ def main(args):
             for m in xrange(n):
                 b.add_edge(m,m,{'order':m,'reversible':False,'fields':[],'depends':[]})
 
-        agentOrder.improveEdgeOrder(b)
+        agentOrder.improveEdgeOrderMore(b)
         PP = PlanPrinterMap.PlanPrinter(b,output_directory,nagents,useGoogle=useGoogle,
                                         api_key=api_key,color=color,planCaptures=args.capture_portals)
         totalTime = b.walktime+b.linktime+b.commtime
@@ -361,7 +361,7 @@ def main(args):
 
 
     b = best_plan
-    agentOrder.improveEdgeOrderMore(b)
+    #agentOrder.improveEdgeOrderMore(b)
 
     # Re-run to fix the animations and stars of edges that can be done early
     # (improveEdgeOrderMore may have modified the completion order)

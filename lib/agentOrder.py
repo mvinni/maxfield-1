@@ -431,7 +431,6 @@ def improveEdgeOrderMore(a):
                             cont = True
 
     length = pathLength(d, orderedEdges)
-    print
     #print("Length reduction: original = %d, improved = %d, change = %d meters" % (origLength, length, length-origLength))
 
     for i in xrange(m):

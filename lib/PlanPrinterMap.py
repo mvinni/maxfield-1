@@ -50,7 +50,7 @@ def commaGroup(n):
     return ','.join([ s[max(i,0):i+3] for i in range(len(s)-3,-3,-3)][::-1])
 
 class PlanPrinter:
-    def __init__(self,a,outputDir,nagents,color='#FF004D',useGoogle=False,api_key=None):
+    def __init__(self,a,outputDir,nagents,color='#FF004D',useGoogle=False,api_key=None,planCaptures=False):
         self.a = a
         self.n = a.order() # number of nodes
         self.m = a.size()  # number of links
@@ -58,6 +58,7 @@ class PlanPrinter:
         self.nagents = nagents
         self.outputDir = outputDir
         self.color = color
+        self.planCaptures = planCaptures
 
         # if the ith link to be made is (p,q) then orderedEdges[i] = (p,q)
         self.orderedEdges = [None]*self.m
@@ -78,7 +79,8 @@ class PlanPrinter:
         for i in xrange(self.nagents):
             for e in self.movements[i]:
                 p,q = self.orderedEdges[e]
-                self.agentkeyneeds[i][q] += 1
+                if p <> q:
+                    self.agentkeyneeds[i][q] += 1
 
         self.names = np.array([a.node[i]['name'] for i in xrange(self.n)])
         # The alphabetical order
@@ -102,6 +104,10 @@ class PlanPrinter:
         self.num_portals = self.n
         self.num_links = self.m
         self.num_fields = 0
+
+        # don't count the self-links when portal captures are planned
+        if planCaptures:
+            self.num_links -= self.n
 
         if useGoogle:
             # convert xy coordinates to web mercator
@@ -174,18 +180,24 @@ class PlanPrinter:
     def keyPrep(self):
         rowFormat = '{0:11d} | {1:6d} | {2:8} | {3:4d} | {4}\n'
         TotalKeylack = 0
+        if self.planCaptures:
+            # subtract the self-links from the in/outdegree counts
+            pcapFix = 1
+        else:
+            pcapFix = 0
+
         with open(self.outputDir+'keyPrep.txt','w') as fout:
             fout.write( 'Keys Needed | Lacked | Outlinks | Map# |                           %s\n'\
                 %time.strftime('%Y-%m-%d %H:%M:%S %Z'))
             for i in self.nameOrder:
-                keylack = max(self.a.in_degree(i)-self.a.node[i]['keys'],0)
-                outcount = self.a.out_degree(i)
+                keylack = max(self.a.in_degree(i)-self.a.node[i]['keys']-pcapFix,0)
+                outcount = self.a.out_degree(i)-pcapFix
                 if outcount <= 8:
                     sbla = outcount
                 else:
                     sbla = "SBLA:%d" % outcount
                 fout.write(rowFormat.format(\
-                    self.a.in_degree(i),\
+                    self.a.in_degree(i)-pcapFix,\
                     keylack,\
                     sbla,
                     self.nslabel[i],\
@@ -199,6 +211,9 @@ class PlanPrinter:
         outfirst = []
 
         for p,q in self.orderedEdges:
+            if p == q: # portal powerup, skip
+                continue
+
             if p in unused:
                 outfirst.append(self.names[p])
                 unused.remove(p)
@@ -381,6 +396,7 @@ class PlanPrinter:
         # Total number of links, fields for each agent
         agentlinkcount  = [0]*self.nagents
         agentfieldcount = [0]*self.nagents
+        agentcapturecount = [0]*self.nagents
         totalAP         = 0
         totalDist       = 0
 
@@ -395,16 +411,24 @@ class PlanPrinter:
                 agentdists[i] += dist
                 curnode = p
 
-                agentlinkcount[i] += 1
-                agentfieldcount[i] += len(self.a.edge[p][q]['fields'])
-                self.num_fields += len(self.a.edge[p][q]['fields'])
-                totalAP += 313
-                totalAP += 1250 * len(self.a.edge[p][q]['fields'])
+                if p <> q:
+                    agentlinkcount[i] += 1
+                    agentfieldcount[i] += len(self.a.edge[p][q]['fields'])
+                    self.num_fields += len(self.a.edge[p][q]['fields'])
+                    totalAP += 313
+                    totalAP += 1250 * len(self.a.edge[p][q]['fields'])
+                else:
+                    agentcapturecount[i] += 1
+                    totalAP += 125*8 + 500 + 250
+
                 totalDist += dist
 
         # Different formatting for the agent's own links
         plainStr = '{0:4d}{1:1s} {2: 5d}{3:5d} {4:s} -> {5:d} {6:s}\n'
         hilitStr = '{0:4d}{1:1s} {2:_>5d}{3:5d} {4:s}\n            {5:4d} {6:s}\n\n'
+
+        powerUpPlainStr = '{0:4d}{1:1s}*{2: 5d}{3:5d} {4:s}\n'
+        powerUpHilitStr = '{0:4d}{1:1s}*{2:_>5d}{3:5d} {4:s}\n\n'
 
         totalTime = self.a.walktime+self.a.linktime+self.a.commtime
 
@@ -417,6 +441,8 @@ class PlanPrinter:
                 fout.write('Complete link schedule issued to agent %s of %s           %s\n\n'\
                     %(agent+1,self.nagents,time.strftime('%Y-%m-%d %H:%M:%S %Z')))
                 fout.write('\nLinks marked with * can be made EARLY\n')
+                if self.planCaptures:
+                    fout.write('Lines marked with ** indicate capturing the portal (full resonators)\n')
                 fout.write('----------- PLAN DATA ------------\n')
                 fout.write('Minutes:                 %s minutes\n'%int(totalTime/60+.5))
                 fout.write('Total Distance:          %s meter\n'%int(totalDist))
@@ -425,9 +451,13 @@ class PlanPrinter:
                 fout.write('AP per Agent per meter:  %0.2f AP/Agent/m\n'%float(totalAP/self.nagents/totalDist))
 
                 agentAP = 313*agentlinkcount[agent] + 1250*agentfieldcount[agent]
+                if self.planCaptures:
+                    agentAP += (125*8 + 500 + 250)*agentcapturecount[agent]
 
                 fout.write('----------- AGENT DATA -----------\n')
                 fout.write('Distance traveled: %s m (%s %%)\n'%(int(agentdists[agent]),int(100*agentdists[agent]/totalDist)))
+                if self.planCaptures:
+                    fout.write('Portals captured:  %s\n'%(agentcapturecount[agent]))
                 fout.write('Links made:        %s\n'%(agentlinkcount[agent]))
                 fout.write('Fields completed:  %s\n'%(agentfieldcount[agent]))
                 fout.write('Total experience:  %s AP (%s %%)\n'%(agentAP,int(100*agentAP/totalAP)))
@@ -455,33 +485,35 @@ class PlanPrinter:
                         #     print '   ',t
 
                     if linkagent != agent:
-                        fout.write(plainStr.format(\
-                            i+1,\
-                            star,\
-                            linkagent+1,\
-                            self.nslabel[p],\
-                            self.names[p],\
-                            self.nslabel[q],\
-                            self.names[q]\
-                        ))
+                        if p <> q:
+                            linkStr = plainStr
+                        else:
+                            linkStr = powerUpPlainStr
                         last_link_from_other_agent = 1
                     else:
                         if last_link_from_other_agent:
                             fout.write('\n')
                         last_link_from_other_agent = 0
-                        fout.write(hilitStr.format(\
-                            i+1,\
-                            star,\
-                            linkagent+1,\
-                            self.nslabel[p],\
-                            self.names[p],\
-                            self.nslabel[q],\
-                            self.names[q]\
-                        ))
+                        if p <> q:
+                            linkStr = hilitStr
+                        else:
+                            linkStr = powerUpHilitStr
+
                         csv_file.write("{0}{1}, {2}, {3}, {4}, {5}, {6}\n".\
                                    format(i,star,linkagent+1,
                                           self.nslabel[p],self.names[p],
                                           self.nslabel[q],self.names[q]))
+
+                    fout.write(linkStr.format(\
+                        i+1,\
+                        star,\
+                        linkagent+1,\
+                        self.nslabel[p],\
+                        self.names[p],\
+                        self.nslabel[q],\
+                        self.names[q]\
+                    ))
+
         csv_file.close()
 
 
@@ -564,7 +596,10 @@ class PlanPrinter:
             if self.google_image is None:
                 return
             implot = ax.imshow(self.google_image,extent=self.xylims,origin='upper')
-        ax.plot(portals[0],portals[1],'go')
+        if self.planCaptures:
+            ax.plot(portals[0],portals[1],'yo')
+        else:
+            ax.plot(portals[0],portals[1],'go')
         # Plot all edges lightly
         for p,q in self.a.edges_iter():
             ax.plot(portals[0,[p,q]],portals[1,[p,q]],'k:')
@@ -580,37 +615,48 @@ class PlanPrinter:
         for i in xrange(self.m):
             p,q = self.orderedEdges[i]
 
-            # We'll display the new fields in red
-            newPatches = []
-            for tri in self.a.edge[p][q]['fields']:
-                coords = np.array([ self.a.node[v]['xy'] for v in tri ])
-                newPatches.append(Polygon(shrink(coords.T).T,facecolor=RED,\
-                                                 edgecolor=INVISIBLE))
-
             newDrawn = []
-            aptotal += 313+1250*len(newPatches)
-            newEdge = np.array([self.a.node[p]['xy'],self.a.node[q]['xy']]).T
-            newDrawn += ax.plot(newEdge[0],newEdge[1],'k-',lw=2)
-            x0 = newEdge[0][0]
-            x1 = newEdge[0][1]
-            y0 = newEdge[1][0]
-            y1 = newEdge[1][1]
-            newDrawn += ax.plot([x1-0.05*(x1-x0),x1-0.4*(x1-x0)],
-                                [y1-0.05*(y1-y0),y1-0.4*(y1-y0)],'k-',lw=6)
-            for patch in newPatches:
-                newDrawn.append(ax.add_patch(patch))
+            if p <> q:
+                # We'll display the new fields in red
+                newPatches = []
+                for tri in self.a.edge[p][q]['fields']:
+                    coords = np.array([ self.a.node[v]['xy'] for v in tri ])
+                    newPatches.append(Polygon(shrink(coords.T).T,facecolor=RED,\
+                                                     edgecolor=INVISIBLE))
+
+                aptotal += 313+1250*len(newPatches)
+                newEdge = np.array([self.a.node[p]['xy'],self.a.node[q]['xy']]).T
+                newDrawn += ax.plot(newEdge[0],newEdge[1],'k-',lw=2)
+                x0 = newEdge[0][0]
+                x1 = newEdge[0][1]
+                y0 = newEdge[1][0]
+                y1 = newEdge[1][1]
+                newDrawn += ax.plot([x1-0.05*(x1-x0),x1-0.4*(x1-x0)],
+                                    [y1-0.05*(y1-y0),y1-0.4*(y1-y0)],'k-',lw=6)
+                for patch in newPatches:
+                    newDrawn.append(ax.add_patch(patch))
+            else:
+                # powering up a portal
+                lightson = np.array([self.a.node[p]['xy']]).T
+                newDrawn += ax.plot(lightson[0],lightson[1],'g*', ms=15)
+                aptotal += 125*8 + 500 + 250
+
             ax.set_title('AP:\n%s'%commaGroup(aptotal),ha='center')
             fig.savefig(self.outputDir+'frame_{0:03d}.png'.format(i))
 
             # remove the newly added edges and triangles from the graph
             for drawn in newDrawn:
                 drawn.remove()
-            # redraw the new edges and triangles in the final color
-            ax.plot(newEdge[0],newEdge[1],'g-')
-            # reset patches to green
-            for patch in newPatches:
-                patch.set_facecolor(GREEN)
-                ax.add_patch(patch)
+
+            if p <> q:
+                # redraw the new edges and triangles in the final color
+                ax.plot(newEdge[0],newEdge[1],'g-')
+                # reset patches to green
+                for patch in newPatches:
+                    patch.set_facecolor(GREEN)
+                    ax.add_patch(patch)
+            else:
+                ax.plot(lightson[0],lightson[1],'go')
 
         ax.set_title('AP:\n%s'%commaGroup(aptotal),ha='center')
         fig.savefig(self.outputDir+'frame_{0:03d}.png'.format(self.m))

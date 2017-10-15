@@ -342,9 +342,17 @@ def main(args):
             print "Problem with bestgraph: no triangulation"
             continue
 
+        if args.capture_portals:
+            # powering up the portals is indicated by self-links
+            # put them as the first n edges just before walk optimization
+            for p,q in b.edges_iter():
+                b.edge[p][q]['order'] += n
+            for m in xrange(n):
+                b.add_edge(m,m,{'order':m,'reversible':False,'fields':[],'depends':[]})
+
         agentOrder.improveEdgeOrder(b)
         PP = PlanPrinterMap.PlanPrinter(b,output_directory,nagents,useGoogle=useGoogle,
-                                        api_key=api_key,color=color)
+                                        api_key=api_key,color=color,planCaptures=args.capture_portals)
         totalTime = b.walktime+b.linktime+b.commtime
         if totalTime < best_time:
             best_plan = b
@@ -367,7 +375,7 @@ def main(args):
 
 
     best_PP = PlanPrinterMap.PlanPrinter(b,output_directory,nagents,useGoogle=useGoogle,
-                                    api_key=api_key,color=color)
+                                    api_key=api_key,color=color,planCaptures=args.capture_portals)
     best_time = b.walktime+b.linktime+b.commtime
 
 
@@ -459,6 +467,8 @@ if __name__ == "__main__":
     parser.add_argument('--timeout',type=float,default=None,help='Timeout in seconds. Default: None')
     parser.add_argument('-c','--check',action='store_true',
                         help='Validate the plan for algorithm errors. Default: False')
+    parser.add_argument('--capture_portals',action='store_true',
+                        help='Plan portal captures. Default: False')
     parser.add_argument('--log',type=str,default=None,help='Log file. Default: print to screen.')
     args = parser.parse_args()
     # Set up job using pebble to handle timeout

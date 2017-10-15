@@ -321,8 +321,13 @@ def improveEdgeOrderMore(a):
         for p,q in subjects:
             depends = a.edge[p][q]['depends']
             for u,v in objects:
-                if depends.count((u,v,)) > 0 or depends.count(u) > 0:
-                    return True
+                if u <> v:
+                    if depends.count((u,v,)) > 0 or depends.count(u) > 0:
+                        return True
+                else:
+                    # portal capture, depends if either end point of the link
+                    if u == p or u == q:
+                        return True
 
         return False
 

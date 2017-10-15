@@ -215,10 +215,10 @@ class PlanPrinter:
                 continue
 
             if p in unused:
-                outfirst.append(self.names[p])
+                outfirst.append('{:3d}'.format(self.nslabel[p]) + " " + self.names[p])
                 unused.remove(p)
             if q in unused:
-                infirst.append(self.names[q])
+                infirst.append('{:3d}'.format(self.nslabel[q]) + " " + self.names[q])
                 unused.remove(q)
 
         infirst.sort()

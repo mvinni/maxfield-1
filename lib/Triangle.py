@@ -28,7 +28,9 @@ class Deadend(Exception):
         self.explain = s
 
 def can_add_more_links_from_portal(a, p):
-    return (a.out_degree(p) < 8) or (a.node[p]['sbla'] and a.out_degree(p) < 40)
+    # assert len(a.successors(p)) == a.out_degree(p)
+    outdegree = len(a.successors(p))
+    return (outdegree < 8) or (a.node[p]['sbla'] and outdegree < 40)
 
 def try_reduce_out_degree(a,p):
     # Reverse as many edges out-edges of p as possible
@@ -67,15 +69,17 @@ def try_ordered_edge(a,p,q,reversible,allow_suboptimal):
             raise(Deadend('%s and %s already have max outgoing'%(p,q)))
         p,q = q,p
     
-    m = a.size()
+    try:
+        m = len(a.edgeStack)
+    except AttributeError:
+        a.edgeStack = []
+        m = 0
+
     a.add_edge(p,q,{'order':m,'reversible':reversible,'fields':[],'depends':[]})
 
-    try:
-        a.edgeStack.append( (p,q) )
-    except AttributeError:
-        a.edgeStack = [ (p,q) ]
-        # print 'adding',p,q
-        # print a.edgeStack
+    a.edgeStack.append( (p,q) )
+    # print 'adding',p,q
+    # print a.edgeStack
 
 
 triangleContentCache = {}
@@ -140,7 +144,7 @@ class Triangle:
         for child in self.children:
             child.randSplit()
 
-    def nearSplit(self):
+    def nearSplit(self, recursive=False):
         # Split on the node closest to final
         if len(self.contents) == 0:
             return
@@ -151,8 +155,9 @@ class Triangle:
 
         self.splitOn(self.contents[closest])
 
-        for child in self.children:
-            child.nearSplit()
+        if recursive:
+            for child in self.children:
+                child.nearSplit()
 
     def splitOn(self,p):
         # Splits this Triangle to produce 3 children using portal p
@@ -204,6 +209,7 @@ class Triangle:
 
     def buildExceptFinal(self):
         # print 'building EXCEPT final',self.tostr()
+        self.nearSplit()
         if len(self.children) == 0:
             # print 'no children'
             p,q = self.verts[2] , self.verts[1]
@@ -219,15 +225,12 @@ class Triangle:
     def buildGraph(self):
         # print 'building',self.tostr()
         '''
-        TODO
         A first generation triangle could have its final vertex's
         edges already completed by neighbors.
         This will cause the first generation to be completed when
         the opposite edge is added which complicates completing inside
         descendants.
-        This could be solved by choosing a new final vertex (or
-        carefully choosing the order of completion of first generation
-        triangles).
+        Solve this by choosing a new final vertex, if possible.
         '''
         if (                                                \
             self.a.has_edge(self.verts[0],self.verts[1]) or \
@@ -238,7 +241,13 @@ class Triangle:
             self.a.has_edge(self.verts[2],self.verts[0])    \
            ):
             # print 'Final vertex completed!!!'
-            raise Deadend('Final vertex completed by neighbors')
+            if self.a.has_edge(self.verts[2],self.verts[1]) or \
+               self.a.has_edge(self.verts[1],self.verts[2]):
+                raise Deadend('Final vertex completed by neighbors')
+            else:
+                # make verts[1] the new final vertex
+                self.verts[0], self.verts[1] = self.verts[1], self.verts[0]
+
         self.buildExceptFinal()
         self.buildFinal()
 

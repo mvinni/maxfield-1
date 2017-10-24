@@ -160,6 +160,23 @@ class Triangle:
             for child in self.children:
                 child.nearSplit()
 
+    def keySplit(self, recursive=False):
+        # Split on the portal with most keys breaking ties randomly
+        if len(self.contents) == 0:
+            return
+
+        keys = np.array([self.a.node[p]['keys'] for p in self.contents])
+
+        maxKeys = np.max(keys)
+        maxIndices = np.where(keys == maxKeys)[0]
+        splitPortal = np.random.choice(maxIndices)
+        splitPortal = self.contents[splitPortal]
+        self.splitOn(splitPortal)
+
+        if recursive:
+            for child in self.children:
+                child.keySplit()
+
     def splitOn(self,p):
         # Splits this Triangle to produce 3 children using portal p
         # p is passed as the first vertex parameter in the
@@ -211,7 +228,9 @@ class Triangle:
     def buildExceptFinal(self):
         # print 'building EXCEPT final',self.tostr()
         #self.nearSplit()
-        self.randSplit()
+        #self.randSplit()
+        self.keySplit()
+
         if len(self.children) == 0:
             # print 'no children'
             p,q = self.verts[2] , self.verts[1]

@@ -394,7 +394,7 @@ def main(args):
     best_PP.keyPrep()
     best_PP.agentKeys()
     best_PP.planMap(useGoogle=useGoogle)
-    best_PP.agentLinks()
+    best_PP.agentLinks(interleave=args.interleave)
 
     if args.check and not best_PP.validatePlan():
         print "The plan contains errors!"
@@ -469,6 +469,8 @@ if __name__ == "__main__":
                         help='Validate the plan for algorithm errors. Default: False')
     parser.add_argument('--capture_portals',action='store_true',
                         help='Plan portal captures. Default: False')
+    parser.add_argument('--interleave',action='store_true',
+                        help='(Multiple agents) Allow more simultaneous actions. Default: False')
     parser.add_argument('--log',type=str,default=None,help='Log file. Default: print to screen.')
     args = parser.parse_args()
     # Set up job using pebble to handle timeout

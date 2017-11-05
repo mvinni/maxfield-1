@@ -390,7 +390,28 @@ class PlanPrinter:
 #            plt.savefig(self.outputDir+'linkMap_agent_%s_of_%s.png'%(agent+1,self.nagents))
 #            plt.clf()
 
-    def agentLinks(self):
+
+    def dependsOn(self, subject, object):
+        '''
+        Returns True, if the edge 'object' should be made before
+        the edge 'subject'.
+        The logic is the same as in agentOrder.improveEdgeOrderMore:dependsOn().
+        '''
+        p,q = subject
+        depends = self.a.edge[p][q]['depends']
+        u,v = object
+        if u <> v:
+            if depends.count((u,v,)) > 0 or depends.count(u) > 0:
+                return True
+        else:
+            # portal capture, depends if either end point of the link
+            if u == p or u == q:
+                return True
+
+        return False
+
+
+    def agentLinks(self,interleave=False):
         # Total distance traveled by each agent
         agentdists = np.zeros(self.nagents)
         # Total number of links, fields for each agent
@@ -435,7 +456,11 @@ class PlanPrinter:
         csv_file = open(self.outputDir+'links_for_agents.csv','w')
         csv_file.write('Link, Agent, MapNumOrigin, OriginName, MapNumDestination, DestinationName\n')
 
+        interleave = interleave and self.nagents > 1
         for agent in range(self.nagents):
+            if interleave:
+                friendDepends = [0]*self.nagents
+
             with open(self.outputDir+'links_for_agent_%s_of_%s.txt'\
                     %(agent+1,self.nagents),'w') as fout:
                 fout.write('Complete link schedule issued to agent %s of %s           %s\n\n'\
@@ -498,6 +523,18 @@ class PlanPrinter:
                             linkStr = hilitStr
                         else:
                             linkStr = powerUpHilitStr
+
+                        if interleave:
+                            prevEdge = i-1
+                            while prevEdge >= 0 and prevEdge >= min(friendDepends):
+                                if self.dependsOn([p,q], self.orderedEdges[prevEdge]):
+                                    whoDidIt = self.link2agent[prevEdge]
+                                    if prevEdge > friendDepends[whoDidIt]:
+                                        friendDepends[whoDidIt] = prevEdge
+                                        if whoDidIt <> agent:
+                                            fout.write("wait for: agent {0} to complete link {1} before proceeding\n".format(\
+                                                        whoDidIt+1, prevEdge+1))
+                                prevEdge -= 1
 
                         csv_file.write("{0}{1}, {2}, {3}, {4}, {5}, {6}\n".\
                                    format(i,star,linkagent+1,

@@ -457,6 +457,9 @@ class PlanPrinter:
         csv_file.write('Link, Agent, MapNumOrigin, OriginName, MapNumDestination, DestinationName\n')
 
         interleave = interleave and self.nagents > 1
+        if interleave:
+            self.waitPoints = {};
+
         for agent in range(self.nagents):
             if interleave:
                 friendDepends = [0]*self.nagents
@@ -532,8 +535,13 @@ class PlanPrinter:
                                     if prevEdge > friendDepends[whoDidIt]:
                                         friendDepends[whoDidIt] = prevEdge
                                         if whoDidIt <> agent:
-                                            fout.write("wait for: agent {0} to complete link {1} before proceeding\n".format(\
+                                            fout.write("wait for: agent {0} to complete link {1} before proceeding\n\n".format(\
                                                         whoDidIt+1, prevEdge+1))
+                                            try:
+                                                self.waitPoints[i].append(prevEdge)
+                                            except KeyError:
+                                                self.waitPoints[i] = [prevEdge]
+
                                 prevEdge -= 1
 
                         csv_file.write("{0}{1}, {2}, {3}, {4}, {5}, {6}\n".\
@@ -607,7 +615,7 @@ class PlanPrinter:
 
         return True
 
-    def animate(self,useGoogle=False):
+    def animate(self,useGoogle=False,interleave=False):
         """
         Show how the links will unfold
         """
@@ -647,36 +655,133 @@ class PlanPrinter:
             ax.set_ylim(self.xylims[2],self.xylims[3])
         ax.axis('off')
         fig.savefig(self.outputDir+'frame_-1.png')
-        
+
+        interleave = interleave and self.nagents > 1
+        if interleave:
+            linksAnimated = []
+
+            def getNextActs():
+                '''
+                    Yields {0: <link>, 1: <link>, 2: <link> ...} for all agents who may
+                    create a link at this step of the execution.
+                '''
+                moves = []
+                for i in range(self.nagents):
+                    moves.append(list(self.movements[i]))
+
+                while True:
+                    steps = {}
+                    newlinks = []
+                    for i in range(self.nagents):
+                        if len(moves[i]) > 0:
+                            cand = moves[i].pop(0)
+                            try:
+                                conditions = self.waitPoints[cand]
+                                addIt = True
+                                for preCond in conditions:
+                                    if preCond not in linksAnimated:
+                                        #print "Condition not met, agent waiting", i, cand,\
+                                        #      "wait on link ", preCond
+                                        moves[i].insert(0, cand)
+                                        addIt = False
+                                        break
+
+                                if addIt:
+                                    steps[i] = cand
+                                    newlinks.append(cand)
+
+                            except KeyError:
+                                steps[i] = cand
+                                newlinks.append(cand)
+
+                    linksAnimated.extend(newlinks)
+
+                    # End case: all agents have completed all their links
+                    if len(steps) == 0:
+                        return
+
+                    yield steps
+        else:
+            def getNextActs():
+                for i in xrange(self.m):
+                    agent = self.link2agent[i]
+                    yield { agent: i }
+
+
         # let's plot some stuff
-        for i in xrange(self.m):
-            p,q = self.orderedEdges[i]
+        i = -1
+        for step in getNextActs():
+            i += 1
 
+            newEdges = []
             newDrawn = []
-            if p <> q:
-                # We'll display the new fields in red
-                newPatches = []
-                for tri in self.a.edge[p][q]['fields']:
-                    coords = np.array([ self.a.node[v]['xy'] for v in tri ])
-                    newPatches.append(Polygon(shrink(coords.T).T,facecolor=RED,\
-                                                     edgecolor=INVISIBLE))
+            newPatches = []
+            newPortalOns = []
 
-                aptotal += 313+1250*len(newPatches)
-                newEdge = np.array([self.a.node[p]['xy'],self.a.node[q]['xy']]).T
-                newDrawn += ax.plot(newEdge[0],newEdge[1],'k-',lw=2)
-                x0 = newEdge[0][0]
-                x1 = newEdge[0][1]
-                y0 = newEdge[1][0]
-                y1 = newEdge[1][1]
-                newDrawn += ax.plot([x1-0.05*(x1-x0),x1-0.4*(x1-x0)],
-                                    [y1-0.05*(y1-y0),y1-0.4*(y1-y0)],'k-',lw=6)
-                for patch in newPatches:
-                    newDrawn.append(ax.add_patch(patch))
-            else:
-                # powering up a portal
-                lightson = np.array([self.a.node[p]['xy']]).T
-                newDrawn += ax.plot(lightson[0],lightson[1],'g*', ms=15)
-                aptotal += 125*8 + 500 + 250
+            for age in step:
+                linkNo = step[age]
+                p,q = self.orderedEdges[linkNo]
+                #print "Agent ", age, " does link ", p, q
+
+                if p <> q:
+                    # We'll display the new fields in red
+                    for tri in self.a.edge[p][q]['fields']:
+                        showField = True
+                        if interleave:
+                            # When allowing the agents more freedom, the completion order of
+                            # some simple triangles may change depending on who creates
+                            # the last link. Check that all of the "other" links have been
+                            # created before animating the field. If they are not, "move" the
+                            # animation to the missing link and let it be shown later.
+                            fieldLinks = [ (tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0]) ]
+                            for expectedLink in fieldLinks:
+                                if self.a.has_edge(expectedLink[0], expectedLink[1]):
+                                    expectLinkNo = self.a.edge[expectedLink[0]][expectedLink[1]]['order']
+                                elif self.a.has_edge(expectedLink[1], expectedLink[0]):
+                                    expectLinkNo = self.a.edge[expectedLink[1]][expectedLink[0]]['order']
+                                else:
+                                    print "ERROR no such link", expectedLink
+
+                                if expectLinkNo not in linksAnimated and expectLinkNo <> linkNo:
+                                    #print "Changing completion order, postponing field anim to: ",\
+                                    #            expectLinkNo, self.orderedEdges[expectLinkNo]
+                                    showField = False
+                                    t1, t2 = self.orderedEdges[expectLinkNo]
+                                    self.a.edge[t1][t2]['fields'].append(tri)
+                                    break
+
+                        if showField:
+                            coords = np.array([ self.a.node[v]['xy'] for v in tri ])
+                            newPatches.append(Polygon(shrink(coords.T).T,facecolor=RED,\
+                                                         edgecolor=INVISIBLE))
+
+                    aptotal += 313+1250*len(newPatches)
+                    newEdge = np.array([self.a.node[p]['xy'],self.a.node[q]['xy']]).T
+                    newEdges.append(newEdge)
+                    newDrawn += ax.plot(newEdge[0],newEdge[1],'k-',lw=2)
+                    x0 = newEdge[0][0]
+                    x1 = newEdge[0][1]
+                    y0 = newEdge[1][0]
+                    y1 = newEdge[1][1]
+                    newDrawn += ax.plot([x1-0.05*(x1-x0),x1-0.4*(x1-x0)],
+                                        [y1-0.05*(y1-y0),y1-0.4*(y1-y0)],'k-',lw=6)
+                    if interleave:
+                        newDrawn += [ax.text(x1-0.9*(x1-x0),y1-0.9*(y1-y0),"A " + str(age+1),\
+                                bbox=dict(facecolor='gray', edgecolor='none', alpha=0.5))]
+                else:
+                    # powering up a portal
+                    lightson = np.array([self.a.node[p]['xy']]).T
+                    newPortalOns.append(lightson)
+                    newDrawn += ax.plot(lightson[0],lightson[1],'g*', ms=15)
+                    if interleave:
+                        newDrawn += [ax.text(lightson[0],lightson[1],"A " + str(age+1), \
+                                ha='left', va='center', bbox=dict(facecolor='gray', edgecolor='none', alpha=0.5))]
+                    aptotal += 125*8 + 500 + 250
+
+
+            for patch in newPatches:
+                newDrawn.append(ax.add_patch(patch))
+
 
             ax.set_title('AP:\n%s'%commaGroup(aptotal),ha='center')
             fig.savefig(self.outputDir+'frame_{0:03d}.png'.format(i))
@@ -685,15 +790,19 @@ class PlanPrinter:
             for drawn in newDrawn:
                 drawn.remove()
 
-            if p <> q:
+            # redraw the new portals
+            for lightson in newPortalOns:
+                ax.plot(lightson[0],lightson[1],'go')
+
+            # reset patches to green
+            for patch in newPatches:
+                patch.set_facecolor(GREEN)
+                ax.add_patch(patch)
+
+            for newEdge in newEdges:
                 # redraw the new edges and triangles in the final color
                 ax.plot(newEdge[0],newEdge[1],'g-')
-                # reset patches to green
-                for patch in newPatches:
-                    patch.set_facecolor(GREEN)
-                    ax.add_patch(patch)
-            else:
-                ax.plot(lightson[0],lightson[1],'go')
+
 
         ax.set_title('AP:\n%s'%commaGroup(aptotal),ha='center')
         fig.savefig(self.outputDir+'frame_{0:03d}.png'.format(self.m))

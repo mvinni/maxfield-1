@@ -403,7 +403,7 @@ def main(args):
 
     # These make step-by-step instructional images
     if not args.skipplot:
-        best_PP.animate(useGoogle=useGoogle)
+        best_PP.animate(useGoogle=useGoogle, interleave=args.interleave)
         best_PP.split3instruct(useGoogle=useGoogle)
 
     print ""
